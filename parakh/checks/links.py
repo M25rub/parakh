@@ -115,7 +115,7 @@ def check_link_destination(url: str) -> CheckResult:
         return CheckResult(check="link_destination", status=CheckStatus.UNVERIFIED,
                            summary=f"Could not follow the link ({type(exc).__name__}).",
                            evidence={"original": url})
-                           
+
 def check_safe_browsing(url: str) -> CheckResult:
     """Ask Google Safe Browsing if this URL is on the unsafe list."""
     try:
@@ -214,12 +214,101 @@ def check_domain_age(domain: str) -> CheckResult:
                            summary=f"Could not look up the domain age ({type(exc).__name__}).",
                            evidence={"domain": domain})
 
+# Known official domains: a short list we can extend. Key = brand name, value = real domains.
+OFFICIAL_DOMAINS = {
+    "hec": ["hec.gov.pk"],
+    "nu": ["nu.edu.pk"],
+    "fast": ["nu.edu.pk"],
+    "nust": ["nust.edu.pk"],
+    "comsats": ["comsats.edu.pk"],
+    "lums": ["lums.edu.pk"],
+    "giki": ["giki.edu.pk"],
+    "pieas": ["pieas.edu.pk"],
+    "iba": ["iba.edu.pk"],
+    "punjab": ["punjab.gov.pk"],
+    "ehsaas": ["ehsaas.gov.pk"],
+    "chevening": ["chevening.org"],
+    "fulbright": ["fulbright.org.pk", "fulbrightprogram.org"],
+    "daad": ["daad.de"],
+    "google": ["google.com"],
+    "microsoft": ["microsoft.com"],
+}
+
+# Letter tricks scammers use: "rn" looks like "m", 0 looks like o, 1 looks like l.
+CONFUSABLES = [("rn", "m"), ("vv", "w"), ("0", "o"), ("1", "l"), ("5", "s")]
+
+
+def _squash(text: str) -> str:
+    """'hec-gov-pk.com' -> 'hecgovpkcom' (only letters and digits)."""
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def _undisguise(text: str) -> str:
+    """Turn disguised letters back: 'rnicrosoft' -> 'microsoft'."""
+    out = text.lower()
+    for fake, real in CONFUSABLES:
+        out = out.replace(fake, real)
+    return out
+
+
+def _is_official(domain: str, official: str) -> bool:
+    """True if domain is the official one or a real subdomain of it."""
+    return domain == official or domain.endswith("." + official)
+
+
 def check_lookalike(domain: str, claimed_org: str | None = None) -> CheckResult:
-    """
-    TODO(Person 2): detect lookalike domains: punycode (xn--), digit/letter swaps
-    (0/o, 1/l, rn/m), extra words ("hec-gov-pk.com"), brand name inside an unrelated domain.
-    Keep a small dict of known official domains (hec.gov.pk, nu.edu.pk, ...).
-    """
-    return CheckResult(check="lookalike", status=CheckStatus.UNVERIFIED,
-                       summary="Lookalike check not implemented yet",
-                       evidence={"domain": domain, "claimed_org": claimed_org})
+    """Detect copycat domains of known organisations."""
+    try:
+        name = _clean_domain(domain)
+        evidence = {"domain": name, "claimed_org": claimed_org}
+        if not name or "." not in name:
+            return CheckResult(check="lookalike", status=CheckStatus.UNVERIFIED,
+                               summary="No valid domain given.", evidence=evidence)
+
+        # 1. Punycode: disguised special characters.
+        if "xn--" in name:
+            evidence["reason"] = "punycode"
+            return CheckResult(check="lookalike", status=CheckStatus.FAIL,
+                               summary=f"{name} uses disguised special characters (punycode), a common copycat trick.",
+                               evidence=evidence)
+
+        # 2. Which brands could this domain be imitating?
+        claimed = (claimed_org or "").lower()
+        squashed = _squash(name)
+        undisguised = _squash(_undisguise(name))
+        suspects = []  # (brand, official_domain, reason)
+        for brand, officials in OFFICIAL_DOMAINS.items():
+            # Skip brands that are not relevant to this email.
+            if claimed and brand not in claimed and not any(_squash(o) in squashed for o in officials):
+                # still check below if brand word appears in the domain
+                if brand not in name:
+                    continue
+            for official in officials:
+                if _is_official(name, official):
+                    return CheckResult(check="lookalike", status=CheckStatus.PASS,
+                                       summary=f"{name} is an official domain of {brand.upper()}.",
+                                       evidence={**evidence, "official_domain": official})
+                if _squash(official) in squashed:
+                    suspects.append((brand, official, "official name hidden inside another domain"))
+                elif _squash(official) in undisguised:
+                    suspects.append((brand, official, "letters swapped to look like the official name"))
+                elif len(brand) >= 3 and brand in re.split(r"[^a-z0-9]+", name):
+                    suspects.append((brand, official, "brand name inside an unrelated domain"))
+
+        if suspects:
+            brand, official, reason = suspects[0]
+            evidence.update({"imitates": official, "reason": reason})
+            strong = reason != "brand name inside an unrelated domain"
+            return CheckResult(
+                check="lookalike",
+                status=CheckStatus.FAIL if strong else CheckStatus.WARN,
+                summary=f"{name} may be imitating {official} ({reason}).",
+                evidence=evidence)
+
+        return CheckResult(check="lookalike", status=CheckStatus.PASS,
+                           summary="No known lookalike pattern found (this does not prove it is official).",
+                           evidence=evidence)
+    except Exception as exc:
+        return CheckResult(check="lookalike", status=CheckStatus.UNVERIFIED,
+                           summary=f"Lookalike check failed ({type(exc).__name__}).",
+                           evidence={"domain": domain, "claimed_org": claimed_org})

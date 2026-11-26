@@ -179,3 +179,33 @@ def test_link_network_error_is_unverified():
     with patch("parakh.checks.links._is_private_host", return_value=False), \
          patch("parakh.checks.links._fetch_headers", side_effect=Exception("boom")):
         assert checks.check_link_destination("https://x.com").status.value == "unverified"
+        
+
+def test_lookalike_official_is_pass():
+    assert checks.check_lookalike("hec.gov.pk", "HEC").status.value == "pass"
+    assert checks.check_lookalike("portal.hec.gov.pk", "HEC").status.value == "pass"
+
+
+def test_lookalike_dashed_copy_is_fail():
+    r = checks.check_lookalike("hec-gov-pk.com", "HEC")
+    assert r.status.value == "fail" and r.evidence["imitates"] == "hec.gov.pk"
+
+
+def test_lookalike_official_hidden_in_front_is_fail():
+    assert checks.check_lookalike("hec.gov.pk.apply-now.com", "HEC").status.value == "fail"
+
+
+def test_lookalike_punycode_is_fail():
+    assert checks.check_lookalike("xn--hec-gv-pk-abc.com", None).status.value == "fail"
+
+
+def test_lookalike_letter_swap_is_fail():
+    assert checks.check_lookalike("rnicrosoft.com", None).status.value == "fail"
+
+
+def test_lookalike_brand_word_in_other_domain_is_warn():
+    assert checks.check_lookalike("hec-scholarship-portal.com", "HEC").status.value == "warn"
+
+
+def test_lookalike_unrelated_is_pass():
+    assert checks.check_lookalike("random-site.com", None).status.value == "pass"
