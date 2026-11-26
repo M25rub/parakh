@@ -1,8 +1,10 @@
 """OWNER: Person 2. Link investigation. NEVER render or download page content."""
+import ipaddress
 import os
 import re
+import socket
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from ..schemas import CheckResult, CheckStatus
@@ -25,19 +27,95 @@ def get_domain(url: str) -> str:
     return (urlparse(url).hostname or "").lower().removeprefix("www.")
 
 
+SHORTENERS = {
+    "bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "cutt.ly", "ow.ly",
+    "rb.gy", "shorturl.at", "tiny.cc", "buff.ly", "rebrand.ly",
+}
+MAX_HOPS = 5
+
+
+def _is_private_host(host: str) -> bool:
+    """True if this host is localhost / internal / unresolvable (unsafe to visit)."""
+    try:
+        if not host or host == "localhost":
+            return True
+        for info in socket.getaddrinfo(host, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if (ip.is_private or ip.is_loopback or ip.is_link_local
+                    or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+                return True
+        return False
+    except Exception:
+        return True  # cannot resolve -> treat as unsafe
+
+
+def _fetch_headers(url: str):
+    """Ask for ONE hop without downloading the page. Returns the response."""
+    headers = {"User-Agent": "ParakhLinkChecker/1.0"}
+    resp = requests.head(url, allow_redirects=False, timeout=5, headers=headers, stream=True)
+    if resp.status_code in (403, 405, 501):
+        resp.close()
+        resp = requests.get(url, allow_redirects=False, timeout=5, headers=headers, stream=True)
+    return resp
+
+
 def check_link_destination(url: str) -> CheckResult:
-    """
-    Follow redirects (max 5 hops, timeout 5s) WITHOUT rendering the page.
-    TODO(Person 2): use requests with allow_redirects, stream=True, close the response.
-    Block private/internal IPs (localhost, 10.x, 192.168.x) for safety.
-    evidence: {"original": url, "final_url": "...", "hops": [...]}
-    Shortened link that ends on a different domain -> WARN.
-    """
-    return CheckResult(check="link_destination", status=CheckStatus.UNVERIFIED,
-                       summary="Link destination check not implemented yet",
-                       evidence={"original": url})
+    """Follow redirects (max 5 hops) without rendering or downloading the page."""
+    try:
+        if not url or not url.lower().startswith(("http://", "https://")):
+            return CheckResult(check="link_destination", status=CheckStatus.UNVERIFIED,
+                               summary="No valid link given.", evidence={"original": url})
 
+        hops = [url]
+        current = url
+        too_many = False
+        for _ in range(MAX_HOPS + 1):
+            host = (urlparse(current).hostname or "").lower()
+            if _is_private_host(host):
+                return CheckResult(
+                    check="link_destination", status=CheckStatus.UNVERIFIED,
+                    summary="Blocked: this link points to an internal or unreachable address, so it was not opened.",
+                    evidence={"original": url, "hops": hops, "blocked_host": host})
+            resp = _fetch_headers(current)
+            try:
+                location = resp.headers.get("Location")
+                is_redirect = resp.status_code in (301, 302, 303, 307, 308) and location
+            finally:
+                resp.close()
+            if not is_redirect:
+                break
+            if len(hops) > MAX_HOPS:
+                too_many = True
+                break
+            current = urljoin(current, location)
+            hops.append(current)
 
+        final_url = hops[-1]
+        original_domain = get_domain(url)
+        final_domain = get_domain(final_url)
+        evidence = {"original": url, "final_url": final_url, "hops": hops,
+                    "original_domain": original_domain, "final_domain": final_domain}
+
+        if too_many:
+            return CheckResult(check="link_destination", status=CheckStatus.WARN,
+                               summary=f"The link jumps through more than {MAX_HOPS} redirects, which is suspicious.",
+                               evidence=evidence)
+        if original_domain != final_domain:
+            if original_domain in SHORTENERS:
+                return CheckResult(check="link_destination", status=CheckStatus.WARN,
+                                   summary=f"Shortened link hides its real destination: {final_domain}.",
+                                   evidence=evidence)
+            return CheckResult(check="link_destination", status=CheckStatus.WARN,
+                               summary=f"The link redirects from {original_domain} to a different site: {final_domain}.",
+                               evidence=evidence)
+        return CheckResult(check="link_destination", status=CheckStatus.PASS,
+                           summary="The link goes to the site it appears to go to.",
+                           evidence=evidence)
+    except Exception as exc:
+        return CheckResult(check="link_destination", status=CheckStatus.UNVERIFIED,
+                           summary=f"Could not follow the link ({type(exc).__name__}).",
+                           evidence={"original": url})
+                           
 def check_safe_browsing(url: str) -> CheckResult:
     """Ask Google Safe Browsing if this URL is on the unsafe list."""
     try:

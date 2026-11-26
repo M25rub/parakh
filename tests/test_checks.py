@@ -138,3 +138,44 @@ def test_safe_browsing_api_error_is_unverified(monkeypatch):
     monkeypatch.setenv("SAFE_BROWSING_API_KEY", "fake")
     with patch("parakh.checks.links.requests.post", return_value=MagicMock(status_code=403)):
         assert checks.check_safe_browsing("https://x.com").status.value == "unverified"
+        
+
+def _redirect(to):
+    return MagicMock(status_code=302, headers={"Location": to})
+
+
+def _ok():
+    return MagicMock(status_code=200, headers={})
+
+
+def test_link_private_address_is_blocked():
+    r = checks.check_link_destination("http://127.0.0.1/admin")
+    assert r.status.value == "unverified" and "blocked_host" in r.evidence
+
+
+def test_link_shortener_to_other_domain_is_warn():
+    responses = [_redirect("https://hec-scholar-2026.com/pay"), _ok()]
+    with patch("parakh.checks.links._is_private_host", return_value=False), \
+         patch("parakh.checks.links._fetch_headers", side_effect=responses):
+        r = checks.check_link_destination("https://bit.ly/abc")
+    assert r.status.value == "warn"
+    assert r.evidence["final_domain"] == "hec-scholar-2026.com"
+
+
+def test_link_same_domain_is_pass():
+    with patch("parakh.checks.links._is_private_host", return_value=False), \
+         patch("parakh.checks.links._fetch_headers", return_value=_ok()):
+        assert checks.check_link_destination("https://hec.gov.pk/apply").status.value == "pass"
+
+
+def test_link_too_many_hops_is_warn():
+    with patch("parakh.checks.links._is_private_host", return_value=False), \
+         patch("parakh.checks.links._fetch_headers", return_value=_redirect("https://a.com/next")):
+        r = checks.check_link_destination("https://a.com/start")
+    assert r.status.value == "warn"
+
+
+def test_link_network_error_is_unverified():
+    with patch("parakh.checks.links._is_private_host", return_value=False), \
+         patch("parakh.checks.links._fetch_headers", side_effect=Exception("boom")):
+        assert checks.check_link_destination("https://x.com").status.value == "unverified"
