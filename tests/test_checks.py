@@ -110,3 +110,31 @@ def test_domain_age_not_supported_is_unverified():
 def test_domain_age_network_error_is_unverified():
     with patch("parakh.checks.links.requests.get", side_effect=Exception("no internet")):
         assert checks.check_domain_age("x.com").status.value == "unverified"   
+        
+
+def test_safe_browsing_no_key_is_unverified(monkeypatch):
+    monkeypatch.delenv("SAFE_BROWSING_API_KEY", raising=False)
+    assert checks.check_safe_browsing("https://x.com").status.value == "unverified"
+
+
+def test_safe_browsing_match_is_fail(monkeypatch):
+    monkeypatch.setenv("SAFE_BROWSING_API_KEY", "fake")
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = {"matches": [{"threatType": "SOCIAL_ENGINEERING"}]}
+    with patch("parakh.checks.links.requests.post", return_value=resp):
+        r = checks.check_safe_browsing("https://bad.example")
+    assert r.status.value == "fail" and "SOCIAL_ENGINEERING" in r.evidence["threats"]
+
+
+def test_safe_browsing_clean_is_pass(monkeypatch):
+    monkeypatch.setenv("SAFE_BROWSING_API_KEY", "fake")
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = {}
+    with patch("parakh.checks.links.requests.post", return_value=resp):
+        assert checks.check_safe_browsing("https://ok.example").status.value == "pass"
+
+
+def test_safe_browsing_api_error_is_unverified(monkeypatch):
+    monkeypatch.setenv("SAFE_BROWSING_API_KEY", "fake")
+    with patch("parakh.checks.links.requests.post", return_value=MagicMock(status_code=403)):
+        assert checks.check_safe_browsing("https://x.com").status.value == "unverified"

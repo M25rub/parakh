@@ -1,4 +1,5 @@
 """OWNER: Person 2. Link investigation. NEVER render or download page content."""
+import os
 import re
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -38,15 +39,47 @@ def check_link_destination(url: str) -> CheckResult:
 
 
 def check_safe_browsing(url: str) -> CheckResult:
-    """
-    TODO(Person 2): Google Safe Browsing v4 Lookup API.
-    POST https://safebrowsing.googleapis.com/v4/threatMatches:find?key=SAFE_BROWSING_API_KEY
-    Match found -> FAIL. No match -> PASS (summary: "Not on Google's unsafe list").
-    API error / no key -> UNVERIFIED.
-    """
-    return CheckResult(check="safe_browsing", status=CheckStatus.UNVERIFIED,
-                       summary="Safe Browsing check not implemented yet")
+    """Ask Google Safe Browsing if this URL is on the unsafe list."""
+    try:
+        key = os.environ.get("SAFE_BROWSING_API_KEY", "").strip()
+        if not key:
+            return CheckResult(check="safe_browsing", status=CheckStatus.UNVERIFIED,
+                               summary="Safe Browsing key not set, so this link was not checked.",
+                               evidence={"url": url})
+        if not url or not url.lower().startswith(("http://", "https://")):
+            return CheckResult(check="safe_browsing", status=CheckStatus.UNVERIFIED,
+                               summary="No valid link given.", evidence={"url": url})
 
+        body = {
+            "client": {"clientId": "parakh", "clientVersion": "1.0"},
+            "threatInfo": {
+                "threatTypes": ["MALWARE", "SOCIAL_ENGINEERING",
+                                "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
+                "platformTypes": ["ANY_PLATFORM"],
+                "threatEntryTypes": ["URL"],
+                "threatEntries": [{"url": url}],
+            },
+        }
+        resp = requests.post(
+            "https://safebrowsing.googleapis.com/v4/threatMatches:find",
+            params={"key": key}, json=body, timeout=5)
+        if resp.status_code != 200:
+            return CheckResult(check="safe_browsing", status=CheckStatus.UNVERIFIED,
+                               summary="Safe Browsing could not be reached.",
+                               evidence={"url": url, "http_status": resp.status_code})
+
+        matches = resp.json().get("matches", [])
+        if matches:
+            kinds = sorted({m.get("threatType", "UNKNOWN") for m in matches})
+            return CheckResult(check="safe_browsing", status=CheckStatus.FAIL,
+                               summary="Google lists this link as unsafe: " + ", ".join(kinds) + ".",
+                               evidence={"url": url, "threats": kinds})
+        return CheckResult(check="safe_browsing", status=CheckStatus.PASS,
+                           summary="Not on Google's unsafe list.", evidence={"url": url})
+    except Exception as exc:
+        return CheckResult(check="safe_browsing", status=CheckStatus.UNVERIFIED,
+                           summary=f"Safe Browsing check failed ({type(exc).__name__}).",
+                           evidence={"url": url})
 
 def _clean_domain(value: str) -> str:
     """'https://www.Site.com/x' or 'Site.com' -> 'site.com'."""
