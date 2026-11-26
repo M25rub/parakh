@@ -30,3 +30,43 @@ def test_redact_hides_cnic_name_email_keeps_link():
 def test_redact_handles_empty():
     assert checks.redact("") == ""
     assert checks.redact(None) == ""
+
+
+def _h(*lines):
+    return "\n".join(lines)
+
+
+def test_headers_missing_is_unverified():
+    r = checks.check_headers("", "a@b.com")
+    assert r.status.value == "unverified"
+
+
+def test_headers_dmarc_fail_and_reply_to_differs():
+    raw = _h(
+        "From: HEC Scholarships <info@hec-scholar.com>",
+        "Reply-To: help@mail.ru",
+        "Authentication-Results: mx.google.com; spf=pass; dkim=none; dmarc=fail",
+    )
+    r = checks.check_headers(raw, "HEC Scholarships <info@hec-scholar.com>")
+    assert r.status.value == "fail"
+    assert r.evidence["dmarc"] == "fail"
+    assert r.evidence["reply_to_domain"] == "mail.ru"
+
+
+def test_headers_freemail_claiming_org_is_warn():
+    raw = _h(
+        "From: HEC Scholarships <hec.office@gmail.com>",
+        "Authentication-Results: mx.google.com; spf=pass; dkim=pass; dmarc=pass",
+    )
+    r = checks.check_headers(raw, "HEC Scholarships <hec.office@gmail.com>")
+    assert r.status.value == "warn"
+
+
+def test_headers_all_good_is_pass():
+    raw = _h(
+        "From: info@hec.gov.pk",
+        "Reply-To: noreply@mail.hec.gov.pk",
+        "Authentication-Results: mx.google.com; spf=pass; dkim=pass; dmarc=pass",
+    )
+    r = checks.check_headers(raw, "info@hec.gov.pk")
+    assert r.status.value == "pass"    
