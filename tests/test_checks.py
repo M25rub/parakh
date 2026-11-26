@@ -69,4 +69,44 @@ def test_headers_all_good_is_pass():
         "Authentication-Results: mx.google.com; spf=pass; dkim=pass; dmarc=pass",
     )
     r = checks.check_headers(raw, "info@hec.gov.pk")
-    assert r.status.value == "pass"    
+    assert r.status.value == "pass"   
+
+
+from unittest.mock import MagicMock, patch  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+
+def _fake_rdap(days_old):
+    reg = (datetime.now(timezone.utc) - timedelta(days=days_old)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = {"events": [
+        {"eventAction": "last changed", "eventDate": "2026-01-01T00:00:00Z"},
+        {"eventAction": "registration", "eventDate": reg},
+    ]}
+    return resp
+
+
+def test_domain_age_new_is_fail():
+    with patch("parakh.checks.links.requests.get", return_value=_fake_rdap(10)):
+        r = checks.check_domain_age("hec-scholar-2026.com")
+    assert r.status.value == "fail" and r.evidence["age_days"] == 10
+
+
+def test_domain_age_months_is_warn():
+    with patch("parakh.checks.links.requests.get", return_value=_fake_rdap(200)):
+        assert checks.check_domain_age("x.org").status.value == "warn"
+
+
+def test_domain_age_old_is_pass():
+    with patch("parakh.checks.links.requests.get", return_value=_fake_rdap(4000)):
+        assert checks.check_domain_age("google.com").status.value == "pass"
+
+
+def test_domain_age_not_supported_is_unverified():
+    with patch("parakh.checks.links.requests.get", return_value=MagicMock(status_code=404)):
+        assert checks.check_domain_age("hec.gov.pk").status.value == "unverified"
+
+
+def test_domain_age_network_error_is_unverified():
+    with patch("parakh.checks.links.requests.get", side_effect=Exception("no internet")):
+        assert checks.check_domain_age("x.com").status.value == "unverified"   

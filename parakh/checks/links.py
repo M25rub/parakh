@@ -1,7 +1,9 @@
 """OWNER: Person 2. Link investigation. NEVER render or download page content."""
 import re
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
+import requests
 from ..schemas import CheckResult, CheckStatus
 
 URL_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.IGNORECASE)
@@ -46,18 +48,60 @@ def check_safe_browsing(url: str) -> CheckResult:
                        summary="Safe Browsing check not implemented yet")
 
 
-def check_domain_age(domain: str) -> CheckResult:
-    """
-    TODO(Person 2): RDAP lookup, GET https://rdap.org/domain/<domain>
-    Find events[] with eventAction == "registration".
-    < 90 days old -> FAIL, < 1 year -> WARN, older -> PASS.
-    Some country domains (e.g. .pk) may not support RDAP -> UNVERIFIED, do not guess.
-    evidence: {"domain": ..., "registered": "2026-11-17", "age_days": 9}
-    """
-    return CheckResult(check="domain_age", status=CheckStatus.UNVERIFIED,
-                       summary="Domain age check not implemented yet",
-                       evidence={"domain": domain})
+def _clean_domain(value: str) -> str:
+    """'https://www.Site.com/x' or 'Site.com' -> 'site.com'."""
+    value = (value or "").strip().lower()
+    if "://" in value:
+        value = urlparse(value).hostname or ""
+    return value.split("/")[0].split(":")[0].removeprefix("www.")
 
+
+def check_domain_age(domain: str) -> CheckResult:
+    """RDAP lookup: how old is this domain?"""
+    name = _clean_domain(domain)
+    try:
+        if not name or "." not in name:
+            return CheckResult(check="domain_age", status=CheckStatus.UNVERIFIED,
+                               summary="No valid domain given.", evidence={"domain": domain})
+
+        resp = requests.get(f"https://rdap.org/domain/{name}", timeout=5,
+                            headers={"Accept": "application/rdap+json"})
+        if resp.status_code != 200:
+            return CheckResult(check="domain_age", status=CheckStatus.UNVERIFIED,
+                               summary=f"Domain age is not available for {name}.",
+                               evidence={"domain": name, "http_status": resp.status_code})
+
+        registered = None
+        for event in resp.json().get("events", []):
+            if event.get("eventAction") == "registration":
+                registered = event.get("eventDate")
+                break
+        if not registered:
+            return CheckResult(check="domain_age", status=CheckStatus.UNVERIFIED,
+                               summary=f"No registration date found for {name}.",
+                               evidence={"domain": name})
+
+        reg_date = datetime.fromisoformat(registered.replace("Z", "+00:00"))
+        if reg_date.tzinfo is None:
+            reg_date = reg_date.replace(tzinfo=timezone.utc)
+        age_days = (datetime.now(timezone.utc) - reg_date).days
+        evidence = {"domain": name, "registered": reg_date.date().isoformat(), "age_days": age_days}
+
+        if age_days < 90:
+            return CheckResult(check="domain_age", status=CheckStatus.FAIL,
+                               summary=f"{name} was registered only {age_days} days ago (brand new).",
+                               evidence=evidence)
+        if age_days < 365:
+            return CheckResult(check="domain_age", status=CheckStatus.WARN,
+                               summary=f"{name} is less than a year old ({age_days} days).",
+                               evidence=evidence)
+        return CheckResult(check="domain_age", status=CheckStatus.PASS,
+                           summary=f"{name} has existed for {age_days // 365} year(s).",
+                           evidence=evidence)
+    except Exception as exc:  # timeout, no internet, bad JSON...
+        return CheckResult(check="domain_age", status=CheckStatus.UNVERIFIED,
+                           summary=f"Could not look up the domain age ({type(exc).__name__}).",
+                           evidence={"domain": domain})
 
 def check_lookalike(domain: str, claimed_org: str | None = None) -> CheckResult:
     """
