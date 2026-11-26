@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+memory.json
+client_secret*.json
+credentials/
+.google_workspace_mcp/
