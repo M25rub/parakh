@@ -29,17 +29,15 @@ uvicorn server:app --reload                          # open http://127.0.0.1:800
 ```
 `PARAKH_MOCK=1` in `.env` shows labelled sample data; `PARAKH_MOCK=0` runs the real agent.
 
-<<<<<<< HEAD
 ## Tests and evaluation
 ```bash
 python -m pytest -q            # unit tests (checks, QR decoder, email parser, data contract)
 python tests/eval_demo.py      # runs the demo emails through the agent, prints accuracy
 ```
-=======
+
 ## Team docs
-- `CONTRACT.md`: who owns what, data shapes, rules (read first!)
+- `CONTRACT.md`: who owns what, data shapes, rules
 - `ROADMAP.md`: build plan and checkpoints
->>>>>>> 19e475295cfd6f8b84a85cb2201a8e19efd62010
 
 ## Privacy
 - Only opportunity emails (search filter) are opened. Gmail access is read + label only: no sending, no deleting.
