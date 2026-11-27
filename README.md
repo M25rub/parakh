@@ -19,7 +19,6 @@ PARAKH_MOCK=0 streamlit run app.py   # real agent
 ## Team docs
 - `CONTRACT.md`: who owns what, data shapes, rules (read first!)
 - `ROADMAP.md`: build plan and checkpoints
-- `prompts/`: context prompts for each teammate's AI assistant
 
 ## Privacy
 Only opportunity emails matching the search are opened. No sending or deleting. Student
