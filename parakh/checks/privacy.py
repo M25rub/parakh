@@ -9,6 +9,24 @@ PATTERNS = {
     "CARD": r"\b(?:\d[ -]?){13,16}\b",
 }
 
+# Words that tell us a phone number is a PAYMENT wallet (scam evidence), not a person's phone.
+WALLET_WORDS = re.compile(
+    r"pay|send|transfer|deposit|jazz\s?cash|easy\s?paisa|sadapay|nayapay|wallet|account|jama",
+    re.IGNORECASE,
+)
+LOOK_BEFORE = 40  # characters to look at BEFORE the number
+LOOK_AFTER = 20   # characters to look at AFTER the number
+
+
+def _redact_phone(match: re.Match) -> str:
+    """Called once for every phone number found. Decide: keep it or hide it."""
+    text = match.string
+    before = text[max(0, match.start() - LOOK_BEFORE):match.start()]
+    after = text[match.end():match.end() + LOOK_AFTER]
+    if WALLET_WORDS.search(before) or WALLET_WORDS.search(after):
+        return match.group(0)  # scammer's wallet: keep as evidence
+    return "[PHONE]"           # a normal phone number: hide it
+
 
 def redact(text: str, student_name: str = "", student_email: str = "") -> str:
     """Replace the student's own name/email and structured IDs with tags."""
@@ -17,8 +35,7 @@ def redact(text: str, student_name: str = "", student_email: str = "") -> str:
         out = re.sub(re.escape(student_email), "[STUDENT_EMAIL]", out, flags=re.I)
     if student_name:
         out = re.sub(re.escape(student_name), "[STUDENT]", out, flags=re.I)
-    for label, pat in PATTERNS.items():
-        out = re.sub(pat, f"[{label}]", out)
-    # TODO(Person 2): keep wallet numbers that appear next to "send/pay/JazzCash/Easypaisa"
-    # (they are scam evidence). Phone redaction above currently removes them too.
+    out = re.sub(PATTERNS["CNIC"], "[CNIC]", out)
+    out = re.sub(PATTERNS["PHONE"], _redact_phone, out)
+    out = re.sub(PATTERNS["CARD"], "[CARD]", out)
     return out
