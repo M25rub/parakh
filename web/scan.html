@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scan inbox · Parakh</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-logo" href="/"><span class="logo-mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></span>Parakh</a>
+    <a href="/scan" class="active">Scan inbox</a>
+    <a href="/check">Check one email</a>
+    <a href="/privacy">Privacy</a>
+  </nav>
+  <header class="page-head">
+    <h1>Scan my inbox</h1>
+    <p class="lead">Parakh opens only scholarship, internship and admission emails. It can read and label them. It never sends or deletes anything.</p>
+  </header>
+
+  <main class="page page-scan">
+    <div id="mock-badge" class="mock-badge" hidden>MOCK DATA: demo mode, not a live scan</div>
+
+    <div class="panel run-bar">
+      <p>Checks up to 10 recent opportunity emails.</p>
+      <button id="scan-btn" class="btn btn-primary">Scan my inbox</button>
+    </div>
+
+    <div class="workspace">
+      <section class="panel trace-panel">
+        <h2>Live agent trace</h2>
+        <ol id="trace" class="trace"></ol>
+      </section>
+
+      <div>
+        <section class="panel results-panel">
+          <h2>Results</h2>
+          <div id="results" class="results"></div>
+        </section>
+        <section class="panel">
+          <h2>Deadlines</h2>
+          <ul id="deadlines" class="deadlines"></ul>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div>
+          <h4>Parakh</h4>
+          <p>An AI agent that checks scholarship, internship and admission emails before students trust them. Built with Gemini and Google ADK.</p>
+        </div>
+        <div>
+          <h4>Use it</h4>
+          <a href="/scan">Scan inbox</a>
+          <a href="/check">Check one email</a>
+        </div>
+        <div>
+          <h4>Trust</h4>
+          <a href="/privacy">Privacy</a>
+        </div>
+      </div>
+      <div class="footer-bottom">GDG AI Agent-a-thon 2026 · FAST CFD · Parakh's verdicts are evidence-based guidance, not a guarantee. Always confirm with the official source.</div>
+    </div>
+  </footer>
+  <script src="/static/app.js"></script>
+  <script>
+    Parakh.showMockBadge();
+    document.getElementById("scan-btn").addEventListener("click", () => {
+      Parakh.run("/api/scan", { method: "GET" }, document.getElementById("scan-btn"));
+    });
+  </script>
+</body>
+</html>

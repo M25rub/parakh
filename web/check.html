@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Check one email · Parakh</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-logo" href="/"><span class="logo-mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></span>Parakh</a>
+    <a href="/scan">Scan inbox</a>
+    <a href="/check" class="active">Check one email</a>
+    <a href="/privacy">Privacy</a>
+  </nav>
+  <header class="page-head">
+    <h1>Check one email</h1>
+    <p class="lead">No inbox access needed. Upload the email as a .eml file, or paste it below.</p>
+  </header>
+
+  <main class="page page-check">
+    <div id="mock-badge" class="mock-badge" hidden>MOCK DATA: demo mode, not a live check</div>
+
+    <div class="workspace">
+      <section class="panel">
+        <form id="check-form" class="check-form">
+          <fieldset class="field-group">
+            <legend>Upload (.eml)</legend>
+            <input type="file" name="eml" accept=".eml,message/rfc822">
+          </fieldset>
+
+          <p class="or">or paste it</p>
+
+          <label>Sender email <input type="text" name="sender" placeholder="someone@example.com"></label>
+          <label>Subject <input type="text" name="subject"></label>
+          <label>Email text <textarea name="body" rows="7"></textarea></label>
+          <label>Original headers (optional) <span class="hint">Gmail → ⋮ → Show original</span>
+            <textarea name="headers" rows="3"></textarea></label>
+
+          <button type="submit" id="check-btn" class="btn btn-primary">Check this email</button>
+        </form>
+      </section>
+
+      <div>
+        <section class="panel trace-panel">
+          <h2>Live agent trace</h2>
+          <ol id="trace" class="trace"></ol>
+        </section>
+        <section class="panel results-panel">
+          <h2>Result</h2>
+          <div id="results" class="results"></div>
+          <ul id="deadlines" class="deadlines"></ul>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div>
+          <h4>Parakh</h4>
+          <p>An AI agent that checks scholarship, internship and admission emails before students trust them. Built with Gemini and Google ADK.</p>
+        </div>
+        <div>
+          <h4>Use it</h4>
+          <a href="/scan">Scan inbox</a>
+          <a href="/check">Check one email</a>
+        </div>
+        <div>
+          <h4>Trust</h4>
+          <a href="/privacy">Privacy</a>
+        </div>
+      </div>
+      <div class="footer-bottom">GDG AI Agent-a-thon 2026 · FAST CFD · Parakh's verdicts are evidence-based guidance, not a guarantee. Always confirm with the official source.</div>
+    </div>
+  </footer>
+  <script src="/static/app.js"></script>
+  <script>
+    Parakh.showMockBadge();
+    document.getElementById("check-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const data = new FormData(e.target);
+      Parakh.run("/api/check", { method: "POST", body: data }, document.getElementById("check-btn"));
+    });
+  </script>
+</body>
+</html>
