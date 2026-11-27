@@ -60,3 +60,16 @@ def test_firestore_lookup_with_fake_client(monkeypatch):
     client.collection.return_value.document.return_value.get.return_value = snap
     with patch.object(memory, "_firestore_client", return_value=client):
         assert memory.lookup(["bad.com"])["report_count"] == 3
+        
+
+def test_firestore_client_reads_secret_json(monkeypatch):
+    monkeypatch.setattr(memory, "_client", None)
+    monkeypatch.setenv("FIRESTORE_CREDENTIALS_JSON", '{"project_id": "demo-proj"}')
+    fake_creds = MagicMock()
+    with patch("google.oauth2.service_account.Credentials.from_service_account_info",
+               return_value=fake_creds) as make_creds, \
+         patch("google.cloud.firestore.Client") as client_cls:
+        memory._firestore_client()
+    make_creds.assert_called_once()
+    client_cls.assert_called_once_with(project="demo-proj", credentials=fake_creds)
+    monkeypatch.setattr(memory, "_client", None)  # don't leak the fake client

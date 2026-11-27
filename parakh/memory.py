@@ -55,10 +55,24 @@ def _save_local(indicators, risk, summary, indicator_type, now) -> None:
 
 
 # ---------------- Firestore backend ----------------
-def _firestore_client():
-    from google.cloud import firestore  # imported here so local mode never needs it
-    return firestore.Client()
+_client = None
 
+def _firestore_client():
+    """Create the Firestore client once and reuse it (faster).
+    Hosting: put the whole key JSON in the FIRESTORE_CREDENTIALS_JSON secret.
+    Laptop: set GOOGLE_APPLICATION_CREDENTIALS=credentials/firestore-key.json in .env."""
+    global _client
+    if _client is None:
+        from google.cloud import firestore
+        raw = os.getenv("FIRESTORE_CREDENTIALS_JSON")
+        if raw:
+            from google.oauth2 import service_account
+            info = json.loads(raw)
+            creds = service_account.Credentials.from_service_account_info(info)
+            _client = firestore.Client(project=info.get("project_id"), credentials=creds)
+        else:
+            _client = firestore.Client()
+    return _client
 
 def _lookup_firestore(indicators: list[str]) -> dict | None:
     client = _firestore_client()
@@ -126,3 +140,4 @@ def save(indicators: list[str], risk: str, summary: str, indicator_type: str = "
         _save_local(indicators, risk, summary, indicator_type, now)
     except Exception:
         pass  # memory must never crash the agent
+        
