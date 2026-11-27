@@ -47,10 +47,6 @@ python -m pytest -q            # unit tests (checks, QR decoder, email parser, d
 python tests/eval_demo.py      # runs the demo emails through the agent, prints accuracy
 ```
 
-## Team docs
-- `CONTRACT.md`: who owns what, data shapes, rules
-- `ROADMAP.md`: build plan and checkpoints
-
 ## Privacy
 - Only opportunity emails (search filter) are opened.
 - The agent is only given read, label and calendar tools: sending, drafting and deleting tools are blocked in code (`ALLOWED_WORKSPACE_TOOLS` in `parakh/agent.py`).
