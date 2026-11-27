@@ -7,13 +7,10 @@ The scam domain `scholarship-hec-pk.xyz` is fictional.
 | `1_fake_scholarship.eml` | "Selected!" + Rs. 15,000 fee in 3 days, link text says hec.gov.pk but goes elsewhere, DMARC fail | Likely scam |
 | `2_qr_poster.eml` | Same scam, link hidden in a QR code poster (`qr_poster.png`) | Likely scam |
 | `3_same_scam_reworded.eml` | Reworded, same link + JazzCash number | Likely scam (from shared memory) |
-| `4_genuine.eml` | **Add yourself:** a real opportunity email you received | Verified + Calendar deadline |
+| `4_genuine_internship.eml` | Real internship email from nu.edu.pk (personal details removed) | Verified + Calendar deadline |
 | `5_certificate_internship.eml` | Authenticated sender, but "pay certificate fee" + 24 hours | Suspicious |
 | `6_newsletter.eml` | Cafe menu | Not an opportunity |
-
-## Add the genuine email (4_genuine.eml)
-Open a real scholarship/internship email from an official organisation in Gmail → ⋮ → **Download message**.
-Rename it `4_genuine.eml` and put it here. Remove any personal details first.
+| `7_genuine_scholarship.eml` | Real HEC scholarship email from nu.edu.pk (personal details removed) | Verified |
 
 ## Use them
 - **Check one email page:** upload any `.eml` file.

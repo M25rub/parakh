@@ -9,6 +9,8 @@ import threading
 from pathlib import Path
 from typing import Optional
 
+import os
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -57,7 +59,15 @@ def health():
 
 @app.get("/api/scan")
 def scan():
-    """Scan the connected inbox (live stream)."""
+    """Scan the connected inbox (live stream).
+    SCAN_ENABLED=0 (public site): Gmail access only works for approved test users, so we say so
+    honestly instead of failing. Mock mode always works."""
+    if os.getenv("SCAN_ENABLED", "1") != "1" and not service.is_mock():
+        def disabled():
+            msg = ("Inbox scan is limited to approved test accounts while Google verifies the app. "
+                   "Use 'Check one email' to try Parakh on any email.")
+            yield f"event: error\ndata: {json.dumps({'message': msg})}\n\n"
+        return StreamingResponse(disabled(), media_type="text/event-stream")
     return _stream(service.scan_inbox, 5)  # 5 keeps us inside the free Gemini limits
 
 

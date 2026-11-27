@@ -5,9 +5,9 @@ This file is why our three parts will not break when combined. Follow it exactly
 ## 1. File ownership (only edit YOUR files)
 | Person | Owns | Never edit |
 |---|---|---|
-| **Person 1: UI, deploy, demo + text/QR checks** | `app.py`, `parakh/mock_data.py`, `parakh/checks/content.py` (fee_pressure), `parakh/checks/qr.py` (decode_qr), `parakh/parse_email.py`, `tests/eval_demo.py`, `Dockerfile`, `.streamlit/`, `demo_emails/`, `README.md`, the demo video | `parakh/agent.py`, `parakh/service.py`, other check files |
-| **Person 2: Evidence checks + parakh-checks MCP server + memory** | `parakh/checks/headers.py`, `parakh/checks/links.py`, `parakh/checks/privacy.py`, `parakh/mcp_server.py`, `parakh/memory.py` | `app.py`, `parakh/agent.py`, `parakh/service.py` |
-| **Person 3: Agent, Gmail/Calendar MCP, integration** | `parakh/agent.py`, `parakh/service.py` (real branch) | `app.py`, `parakh/checks/*`, `parakh/memory.py` |
+| **Person 1: UI, deploy, demo + text/QR checks** | `server.py`, `web/`, `parakh/mock_data.py`, `parakh/checks/content.py` (fee_pressure), `parakh/checks/qr.py` (decode_qr), `parakh/parse_email.py`, `tests/eval_demo.py`, `Dockerfile`, `demo_emails/`, `README.md`, the demo video | `parakh/agent.py`, `parakh/service.py`, other check files |
+| **Person 2: Evidence checks + parakh-checks MCP server + memory** | `parakh/checks/headers.py`, `parakh/checks/links.py`, `parakh/checks/privacy.py`, `parakh/mcp_server.py`, `parakh/memory.py` | `server.py`, `web/`, `parakh/agent.py`, `parakh/service.py` |
+| **Person 3: Agent, Gmail/Calendar MCP, integration** | `parakh/agent.py`, `parakh/service.py` (real branch) | `server.py`, `web/`, `parakh/checks/*`, `parakh/memory.py` |
 | **Shared (change only after all 3 agree)** | `parakh/schemas.py`, `requirements.txt`, `CONTRACT.md`, `tests/test_contract.py` | |
 
 ## 2. The data shapes (`parakh/schemas.py`)

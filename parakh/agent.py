@@ -31,6 +31,15 @@ from .schemas import Verdict
 
 MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
+# The ONLY Gmail/Calendar tools the agent may use. No send, draft, delete, filters or
+# out-of-office: Parakh can read opportunity emails, label them and add calendar events.
+ALLOWED_WORKSPACE_TOOLS = [
+    "search_gmail_messages", "get_gmail_message_content", "get_gmail_messages_content_batch",
+    "get_gmail_attachment_content", "list_gmail_labels", "manage_gmail_label",
+    "modify_gmail_message_labels", "batch_modify_gmail_message_labels",
+    "list_calendars", "get_events", "manage_event",
+]
+
 # Verdicts collected during one run. service.py reads and clears this.
 COLLECTED_VERDICTS: list[Verdict] = []
 
@@ -60,23 +69,27 @@ def memory_save(indicators: list[str], risk: str, summary: str) -> dict:
     return {"ok": True}
 
 
-official_source_agent = LlmAgent(
-    model=MODEL,
-    name="official_source_agent",
-    description="Finds the official page of a scholarship, internship or organisation and "
-                "reports whether it charges a fee, its real deadline and its official domain.",
-    instruction="Search for the OFFICIAL website of the program named in the request. "
-                "Reply in JSON: {official_url, official_domain, charges_fee (true/false/unknown), "
-                "official_deadline, contradictions: [..]}. If you cannot find it, say unknown. "
-                "Never guess.",
-    tools=[google_search],
-)
+def make_official_source_agent(model: str) -> LlmAgent:
+    """Built per model so that when service.py switches to the backup model (after a 429/503),
+    the sub-agent switches too. Before, it was stuck on the exhausted model."""
+    return LlmAgent(
+        model=model,
+        name="official_source_agent",
+        description="Finds the official page of a scholarship, internship or organisation and "
+                    "reports whether it charges a fee, its real deadline and its official domain.",
+        instruction="Search for the OFFICIAL website of the program named in the request. "
+                    "Reply in JSON: {official_url, official_domain, charges_fee (true/false/unknown), "
+                    "official_deadline, contradictions: [..]}. If you cannot find it, say unknown. "
+                    "Never guess.",
+        tools=[google_search],
+    )
 
 
 def checks_mcp() -> McpToolset:
     return McpToolset(connection_params=StdioConnectionParams(
         server_params=StdioServerParameters(command=sys.executable,
-                                            args=["-m", "parakh.mcp_server"])))
+                                            args=["-m", "parakh.mcp_server"]),
+        timeout=30))
 
 
 def workspace_mcp() -> McpToolset:
@@ -85,10 +98,15 @@ def workspace_mcp() -> McpToolset:
     Read its README for the exact launch args and env vars (OAuth client id/secret,
     USER_GOOGLE_EMAIL). First baby step: connect and PRINT the list of tool names.
     """
+    # The default start-up timeout is 5 seconds. uvx may need much longer the first time
+    # (it downloads workspace-mcp), so we allow 120 s. Run `uvx workspace-mcp --help` once
+    # beforehand to cache it.
     return McpToolset(connection_params=StdioConnectionParams(
         server_params=StdioServerParameters(
             command="uvx", args=["workspace-mcp", "--tools", "gmail", "calendar"],
-            env={**os.environ})))
+            env={**os.environ}),
+        timeout=120),
+        tool_filter=ALLOWED_WORKSPACE_TOOLS)
 
 
 INSTRUCTION = """
@@ -107,7 +125,9 @@ For an INBOX SCAN:
      check_lookalike on the FINAL domain
    - image/QR attachment -> decode_qr, then link checks on decoded URLs
    - always -> check_fee_pressure
-   - it names a real program -> official_source_agent
+   - it names a real program AND the other evidence is not already conclusive
+     -> official_source_agent (it is slow and uses extra quota, so skip it when the
+     checks already show a clear scam)
 3. Decide risk: likely_scam / suspicious / verified / not_opportunity, with confidence.
    Checks with status "unverified" LOWER confidence; never treat them as pass or fail.
 4. Act:
@@ -117,17 +137,23 @@ For an INBOX SCAN:
    - suspicious/likely_scam -> memory_save with the scam domains/URLs/sender address only
 5. Call submit_verdict once per email. If it returns an error, fix the JSON and resubmit.
 
+EFFICIENCY (the API has a small request quota): call all independent checks together in
+the SAME step instead of one at a time, keep explanations short, and stop right after
+submit_verdict. Do not repeat a tool call that already returned a result.
+
 Never send or delete emails. Never include the student's personal data in memory.
 """
 
 
-def build_agent(use_gmail: bool = True) -> LlmAgent:
-    tools = [checks_mcp(), AgentTool(agent=official_source_agent),
+def build_agent(use_gmail: bool = True, model: str | None = None) -> LlmAgent:
+    """model lets service.py switch to a backup model when Gemini is overloaded or out of quota."""
+    m = model or MODEL
+    tools = [checks_mcp(), AgentTool(agent=make_official_source_agent(m)),
              memory_lookup, memory_save, submit_verdict]
     if use_gmail:
         tools.insert(1, workspace_mcp())
-    return LlmAgent(model=MODEL, name="parakh", instruction=INSTRUCTION, tools=tools)
+    return LlmAgent(model=m, name="parakh", instruction=INSTRUCTION, tools=tools)
 
 
-# `adk web` looks for root_agent
-root_agent = build_agent(use_gmail=os.getenv("USE_GMAIL_MCP", "1") == "1")
+# `adk web` looks for root_agent. Gmail stays OFF unless USE_GMAIL_MCP=1 is set explicitly.
+root_agent = build_agent(use_gmail=os.getenv("USE_GMAIL_MCP", "0") == "1")

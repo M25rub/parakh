@@ -3,8 +3,7 @@
 ## What "deployable" means
 Your app must run **on the internet with a public link** that judges can open in their browser,
 not just on your laptop. We package the app in a container (`Dockerfile`) and run it on
-**Google Cloud Run**, which gives a URL like `https://parakh-xxxx.a.run.app`.
-Backup if credits/billing fail: **Streamlit Community Cloud** (free, deploys from GitHub).
+**Render** (free Docker hosting), which gives a URL like `https://parakh-xxxx.onrender.com`.
 
 ## Phase 0: Setup together (Hour 0–1, everyone)
 1. Person 1 creates a GitHub repo `parakh`, uploads this starter, adds Persons 2 and 3 as collaborators.
@@ -15,7 +14,7 @@ Backup if credits/billing fail: **Streamlit Community Cloud** (free, deploys fro
    pip install -r requirements.txt
    cp .env.example .env             # fill in your keys
    PARAKH_MOCK=1 pytest -q          # must show 4 passed
-   PARAKH_MOCK=1 streamlit run app.py   # the mock app opens in the browser
+   uvicorn server:app --reload       # open http://127.0.0.1:8000
    ```
 3. Get keys: Gemini API key (aistudio.google.com), Safe Browsing API key (Cloud Console →
    APIs & Services → enable "Safe Browsing API" → Credentials → API key).
@@ -25,10 +24,10 @@ Backup if credits/billing fail: **Streamlit Community Cloud** (free, deploys fro
 ## Phase 1: Build in parallel (Hour 1–8)
 | Person 1: UI + deploy + demo + 2 checks | Person 2: Evidence checks + MCP server + memory | Person 3: Agent + Gmail/Calendar MCP |
 |---|---|---|
-| Polish the Streamlit UI against mock data (theme, cards, trace panel, deadlines) | `extract_links`, `redact`, `check_headers` | Run `adk web`, Gemini key working, agent calls a stub tool via parakh-checks MCP |
+| Build the web UI (FastAPI + HTML/CSS/JS) against mock data (theme, cards, trace panel, deadlines) | `extract_links`, `redact`, `check_headers` | Run `adk web`, Gemini key working, agent calls a stub tool via parakh-checks MCP |
 | `check_fee_pressure` (keywords/regex) | `check_domain_age` (RDAP) + `check_safe_browsing` | `submit_verdict` working + `_run_agent` in service.py |
 | `decode_qr` (OpenCV) + make the QR demo poster | `check_link_destination` + `check_lookalike` | Connect workspace-mcp; print its tool names; search the demo inbox |
-| First Cloud Run deploy of the MOCK app + send the 5 demo emails | Test `python -m parakh.mcp_server`; memory local JSON | official_source_agent (google_search via AgentTool) |
+| First deploy of the MOCK app + send the 5 demo emails | Test `python -m parakh.mcp_server`; memory local JSON | official_source_agent (google_search via AgentTool) |
 
 ### ✅ Checkpoint 1 (Hour 4): 15-minute call
 Persons 1 & 2 merge real `fee_pressure`, `headers`, `extract_links`. Person 3 confirms the agent
@@ -58,14 +57,7 @@ one demo email → agent → checks → Verdict → shows in UI. Fix whatever br
 - [ ] 3–5 min demo video: one real task from "Scan" to labels + calendar event
 - [ ] Incomplete features clearly marked as "future" (WhatsApp, LinkedIn, etc.)
 
-## Deploy to Cloud Run (Person 1)
-```bash
-gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
-gcloud run deploy parakh --source . --region asia-south1 --allow-unauthenticated \
-  --set-env-vars PARAKH_MOCK=0,GEMINI_MODEL=gemini-flash-latest \
-  --set-secrets GOOGLE_API_KEY=gemini-key:latest,SAFE_BROWSING_API_KEY=sb-key:latest
-```
-Keep min instances at 0 (default) so it costs nothing when idle. Set a budget alert.
-⚠️ Our event credit showed an expiry of Nov 27, 12:40 AM. Confirm with organisers; if billing
-stops, use Streamlit Community Cloud as backup.
+## Deployment (what we actually used)
+Our Google Cloud credits expired, so the app runs as a Docker container on **Render** (free plan),
+auto-deployed from `main`: https://parakh-4opz.onrender.com
+Environment variables are set in the Render dashboard; the Firestore key is a Render "secret file".

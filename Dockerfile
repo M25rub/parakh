@@ -1,4 +1,4 @@
-# OWNER: Person 1. Container for Hugging Face Spaces (port 7860), Render or Cloud Run (they set PORT).
+# OWNER: Person 1. Container for Render (or any Docker host; they set PORT).
 FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt .

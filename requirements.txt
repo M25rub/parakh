@@ -1,5 +1,4 @@
 pydantic>=2.6
-streamlit>=1.38
 google-adk
 mcp<2
 requests
