@@ -58,7 +58,7 @@ def health():
 @app.get("/api/scan")
 def scan():
     """Scan the connected inbox (live stream)."""
-    return _stream(service.scan_inbox, 10)
+    return _stream(service.scan_inbox, 5)  # 5 keeps us inside the free Gemini limits
 
 
 @app.post("/api/check")
