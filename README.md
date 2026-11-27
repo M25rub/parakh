@@ -65,6 +65,6 @@ python tests/eval_demo.py      # runs the demo emails through the agent, prints 
 - Future work: WhatsApp and LinkedIn messages, redaction for inbox-scan mode, per-user Gmail sign-in.
 
 ## Team
-- Person 1 (Ella): web app, email parsing, fee/pressure + QR checks, evaluation, deployment
-- Person 2: investigation checks, `parakh-checks` MCP server, shared memory
-- Person 3: ADK agent, Gmail + Calendar MCP, integration
+- Merub Awan: web app, email parsing, fee/pressure + QR checks, evaluation, deployment
+- Kiran Shahid: investigation checks, `parakh-checks` MCP server, shared memory
+- Sawera Khalid: ADK agent, Gmail + Calendar MCP, integration
