@@ -7,3 +7,4 @@ client_secret*.json
 credentials/
 .google_workspace_mcp/
 prompts/
+tests/eval_results.md
