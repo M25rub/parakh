@@ -209,3 +209,18 @@ def test_lookalike_brand_word_in_other_domain_is_warn():
 
 def test_lookalike_unrelated_is_pass():
     assert checks.check_lookalike("random-site.com", None).status.value == "pass"
+    
+
+def test_domain_age_uses_registered_domain():
+    with patch("parakh.checks.links.requests.get", return_value=_fake_rdap(4000)) as g:
+        r = checks.check_domain_age("careers.google.com")
+    assert "rdap.org/domain/google.com" in g.call_args[0][0]
+    assert r.status.value == "pass"
+
+
+def test_link_subdomain_redirect_is_pass():
+    with patch("parakh.checks.links._is_private_host", return_value=False), \
+         patch("parakh.checks.links._fetch_headers",
+               side_effect=[_redirect("https://google.com/"), _ok()]):
+        r = checks.check_link_destination("https://careers.google.com")
+    assert r.status.value == "pass"

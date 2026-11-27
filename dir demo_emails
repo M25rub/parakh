@@ -1,0 +1,8 @@
+ parakh/checks/headers.py | 120 [32m+++++++++++++++[m[31m---[m
+ parakh/checks/links.py   | 318 [32m+++++++++++++++++++++++++++++++++++++++++[m[31m------[m
+ parakh/checks/privacy.py |  27 [32m+++[m[31m-[m
+ parakh/memory.py         | 101 [32m+++++++++++++[m[31m--[m
+ tests/check_mcp_tools.py |  31 [32m+++++[m
+ tests/test_checks.py     | 211 [32m+++++++++++++++++++++++++++++++[m
+ tests/test_memory.py     |  62 [32m+++++++++[m
+ 7 files changed, 800 insertions(+), 70 deletions(-)

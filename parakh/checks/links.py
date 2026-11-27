@@ -100,7 +100,10 @@ def check_link_destination(url: str) -> CheckResult:
             return CheckResult(check="link_destination", status=CheckStatus.WARN,
                                summary=f"The link jumps through more than {MAX_HOPS} redirects, which is suspicious.",
                                evidence=evidence)
-        if original_domain != final_domain:
+        same_owner = (original_domain == final_domain
+                      or original_domain.endswith("." + final_domain)
+                      or final_domain.endswith("." + original_domain))
+        if not same_owner:
             if original_domain in SHORTENERS:
                 return CheckResult(check="link_destination", status=CheckStatus.WARN,
                                    summary=f"Shortened link hides its real destination: {final_domain}.",
@@ -167,6 +170,17 @@ def _clean_domain(value: str) -> str:
     return value.split("/")[0].split(":")[0].removeprefix("www.")
 
 
+
+SECOND_LEVEL = {"co", "com", "org", "net", "edu", "gov", "ac"}
+
+
+def _registered_domain(name: str) -> str:
+    """'careers.google.com' -> 'google.com'; 'portal.hec.gov.pk' -> 'hec.gov.pk'."""
+    parts = name.split(".")
+    if len(parts) >= 3 and len(parts[-1]) == 2 and parts[-2] in SECOND_LEVEL:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
 def check_domain_age(domain: str) -> CheckResult:
     """RDAP lookup: how old is this domain?"""
     name = _clean_domain(domain)
@@ -175,8 +189,8 @@ def check_domain_age(domain: str) -> CheckResult:
             return CheckResult(check="domain_age", status=CheckStatus.UNVERIFIED,
                                summary="No valid domain given.", evidence={"domain": domain})
 
-        resp = requests.get(f"https://rdap.org/domain/{name}", timeout=5,
-                            headers={"Accept": "application/rdap+json"})
+        name = _registered_domain(name)
+        resp = requests.get(f"https://rdap.org/domain/{name}", timeout=5,                            headers={"Accept": "application/rdap+json"})
         if resp.status_code != 200:
             return CheckResult(check="domain_age", status=CheckStatus.UNVERIFIED,
                                summary=f"Domain age is not available for {name}.",
